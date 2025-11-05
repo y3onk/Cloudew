@@ -75,7 +75,7 @@ if os.path.exists(profile_path):
                 .profile-nickname {{
                     font-size: 22px;
                     font-weight: 700;
-                    color: #f5f5f5;
+                    color: #aaaaaa;
                     margin-top: 10px;
                 }}
                 .profile-iam {{

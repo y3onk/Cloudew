@@ -27,8 +27,8 @@ st.markdown(
 )
 
 st.image(
-    "https://d1.awsstatic.com/product-marketing/GuardDuty/diagram-guardduty.7cf24c7f64.png",
-    caption="GuardDuty → Lambda → EventBridge → Slack → S3",
+    "data/soar_architecture.png",
+    caption="GuardDuty → Lambda → EventBridge → Slack → S3/DashBoard",
 )
 st.divider()
 

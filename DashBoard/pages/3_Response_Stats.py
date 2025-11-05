@@ -53,7 +53,7 @@ try:
         labels=counts.keys(),
         autopct="%1.1f%%",
         startangle=90,
-        colors=["#F4A261", "#E76F51", "#2A9D8F"],
+        colors=["#41b8d5", "#6ce5e8", "#2d8bba"],
     )
     ax.set_title("response action ratio")
     st.pyplot(fig)
@@ -71,7 +71,7 @@ try:
         ✅ **조치 규칙**
         - **Severity < 4.0:** 로그 기록만  
         - **4.0 ≤ Severity < 8.0:** 정책 다운그레이드  
-        - **≥ 8.0:** 계정 완전 격리  
+        - **Severity ≥ 8.0:** 계정 완전 격리  
         """
     )
 
