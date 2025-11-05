@@ -39,7 +39,7 @@ Lambda 자동 대응 이후 Slack 알림을 수행하는 Serverless 기반 보�
 
 ### 📄 Incident Response Playbook
 
-👉 [Playbook.MD](https://www.notion.so/hwijugn/Playbook.md)
+👉 [Playbook.MD](https://github.com/y3onk/Cloudew/blob/main/PlayBook.md)
 
 ---
 
