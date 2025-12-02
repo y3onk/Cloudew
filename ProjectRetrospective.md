@@ -1,4 +1,4 @@
-
+<img width="1575" height="714" alt="image" src="https://github.com/user-attachments/assets/1d34cdff-08d8-48ff-ad34-933cc31d7436" />
 ##  기술적 의도
 
 ### 1. Guardduty Finding 심각도 기반 필터링 로직
