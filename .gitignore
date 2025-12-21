@@ -17,3 +17,6 @@ profile.json
 
 # OS
 .DS_Store
+
+# Environment variables
+.env

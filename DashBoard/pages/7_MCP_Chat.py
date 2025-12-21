@@ -2,6 +2,12 @@
 import streamlit as st
 import requests
 from datetime import datetime
+import os
+from dotenv import load_dotenv
+
+# .env 로드 (API 키용)
+load_dotenv(os.path.join(os.path.dirname(__file__), "..", "..", "mcp-server", ".env"))
+API_KEY = os.getenv("CLAUDE_API_KEY")
 
 st.set_page_config(page_title="AWS GuardDuty Playbook", page_icon="🛡️", layout="wide")
 
@@ -114,14 +120,16 @@ with right:
 
         # === 실제 MCP Chat Lambda 호출 연결 예정 ===
         try:
+            headers = {"x-api-key": API_KEY} if API_KEY else {}
             res = requests.post(
-                "http://localhost:8080/api/chat",
-                json={"message": user_input}
+                "http://13.209.50.18:8000/chat",
+                json={"message": user_input},
+                headers=headers
             )
             if res.status_code == 200:
-                reply = res.json().get("response", "응답 없음")
+                reply = res.json().get("reply", "응답 없음")
             else:
-                reply = "Lambda 응답 실패"
+                reply = f"Lambda 응답 실패: {res.status_code} - {res.text}"
         except Exception as e:
             reply = f"요청 실패: {str(e)}"
 
