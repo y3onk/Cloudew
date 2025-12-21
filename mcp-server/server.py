@@ -2,7 +2,7 @@ import sys
 import os
 import json
 from datetime import datetime, timedelta
-from mcp.server.fastmcp import FastMCP
+from fastmcp import FastMCP
 from dotenv import load_dotenv
 
 # 1. 환경 변수 및 경로 설정
@@ -24,10 +24,10 @@ except ImportError:
 # 3. 규정 도구(Compliance Tool) 로드
 # (B님이 만든 도구는 AWS 공식 MCP가 대체 못하므로 필수 유지!)
 try:
-    import compliance_tools
+    import tools.compliance_tools
 
     compliance_base_path = os.path.join(current_dir, "tools", "data")
-    compliance_box = compliance_tools.ComplianceTool(
+    compliance_box = tools.compliance_tools.ComplianceTool(
         regulations_path=os.path.join(compliance_base_path, "regulations"),
         templates_path=os.path.join(compliance_base_path, "templates"),
     )
@@ -42,9 +42,9 @@ except Exception as e:
 # (AWS 공식 MCP가 생겼으므로, 파일이 없으면 그냥 넘어갑니다)
 try:
     sys.path.append(os.path.join(current_dir, "mcp"))
-    import security_tool
+    import mcp.security_tool
 
-    security_box = security_tool.SecurityToolbox()
+    security_box = mcp.security_tool.SecurityToolbox()
 except ImportError:
     security_box = None
 
