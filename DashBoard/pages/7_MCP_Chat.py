@@ -1,143 +1,123 @@
-# pages/7_MCP_Chat.py
 import streamlit as st
 import requests
-from datetime import datetime
 import os
-from dotenv import load_dotenv
+from datetime import datetime
 
-# .env 로드 (API 키용)
-load_dotenv(os.path.join(os.path.dirname(__file__), "..", "..", "mcp-server", ".env"))
-API_KEY = os.getenv("CLAUDE_API_KEY")
+LAMBDA_URL = "https://jffwbmwghhqrrgsmkzp2kgl6zq0wmoum.lambda-url.ap-northeast-2.on.aws"
 
-st.set_page_config(page_title="AWS GuardDuty Playbook", page_icon="🛡️", layout="wide")
+st.set_page_config(page_title="MCP Chat", page_icon="🛡️", layout="wide")
 
-# =======================
-# 스타일 (Claude 느낌)
-# =======================
 st.markdown("""
 <style>
-.title-area {
-    font-size: 34px;
-    font-weight: 800;
-    margin-bottom: 10px;
+.chat-container{
+    background:#faf7f4;
+    border:1px solid #e6dfd8;
+    border-radius:18px;
+    padding:18px;
+    height:600px;
+    overflow-y:auto;
 }
-.chat-box {
-    background: #faf7f4;
-    border: 1px solid #e6dfd8;
-    border-radius: 16px;
-    padding: 14px 20px;
+.user-msg{
+    background:#ffffff;
+    padding:10px 14px;
+    border-radius:12px;
+    margin-bottom:10px;
 }
-.chat-input {
-    width: 100%;
-    height: 85px;
-    border-radius: 14px;
-    padding: 12px;
-    border: none;
+.bot-msg{
+    background:#f3efe9;
+    padding:10px 14px;
+    border-radius:12px;
+    margin-bottom:10px;
 }
-.play-item {
-    padding: 12px 4px;
-    border-bottom: 1px solid #eee;
-}
-.play-item:hover{
-    background:#f6f3ef;
-    cursor:pointer;
-}
-.timestamp {
-    color:#777;
-    font-size:12px;
-}
-.send-btn{
-    background:#f3b6a3;
-    padding:10px 16px;
-    border-radius:10px;
+.input-box{
+    border-radius:14px;
 }
 </style>
 """, unsafe_allow_html=True)
 
-# =======================
-# 헤더
-# =======================
-st.markdown('<div class="title-area">AWS Guardduty Playbook</div>', unsafe_allow_html=True)
 
-# =======================
-# 레이아웃
-# =======================
-left, right = st.columns([2, 3])
+# ================================
+# Query Params
+# ================================
+query_params = st.query_params
+analysis_id = query_params.get("analysis_id", None)
 
-# =======================
-# 좌측 — Playbook 리스트 (현재 더미)
-# 나중에 DynamoDB → GuardDuty Incident 기록 붙이면 됨
-# =======================
-with left:
-    st.write("")
-    
-    playbook_items = [
-        {"title": "DynamoDB 스키마 설계 배우기", "time": "3분 전"},
-        {"title": "MCP 규정준수 도구 설계 및 구현 계획", "time": "15시간 전"},
-        {"title": "MCP 실제 적용 단계별 가이드", "time": "23시간 전"},
-    ]
 
-    for p in playbook_items:
-        st.markdown(
-            f"""
-            <div class="play-item">
-                <b>{p['title']}</b><br>
-                <span class="timestamp">마지막 메시지 {p['time']}</span>
-            </div>
-            """,
-            unsafe_allow_html=True
-        )
+st.title("🛡️ MCP Incident Chat")
 
-# =======================
-# 오른쪽 — Claude Chat Zone
-# =======================
-with right:
 
-    st.markdown('<div class="chat-box">', unsafe_allow_html=True)
+# ================================
+# If analysis_id is missing
+# ================================
+if not analysis_id:
+    st.warning(
+        "❗현재 연결된 인시던트가 없습니다.\n\n"
+        "- Slack → Claude 분석 버튼을 눌러 시작하거나\n"
+        "- Incident Dashboard에서 인시던트를 선택하세요."
+    )
+    st.stop()
 
-    # 입력 UI
-    user_input = st.text_area(" ", placeholder="질문을 입력하세요...", label_visibility="hidden")
 
-    col1, col2, col3 = st.columns([8, 1.5, 1])
+# ================================
+# Session Chat History
+# ================================
+if "chat_history" not in st.session_state:
+    st.session_state.chat_history = []
 
-    with col2:
-        st.selectbox("모델", ["Sonnet 4.5", "Haiku 3.1", "Opus"], label_visibility="collapsed")
 
-    with col3:
-        send = st.button("↑", use_container_width=True)
+# ================================
+# Chat UI
+# ================================
+chat_box = st.container()
+
+with chat_box:
+    st.markdown('<div class="chat-container">', unsafe_allow_html=True)
+
+    if len(st.session_state.chat_history) == 0:
+        st.info("💬 인시던트에 대해 질문을 시작해보세요!")
+
+    for chat in st.session_state.chat_history:
+        if chat["role"] == "user":
+            st.markdown(f"<div class='user-msg'><b>🙋 User</b><br>{chat['msg']}</div>", unsafe_allow_html=True)
+        else:
+            st.markdown(f"<div class='bot-msg'><b>🤖 MCP</b><br>{chat['msg']}</div>", unsafe_allow_html=True)
 
     st.markdown("</div>", unsafe_allow_html=True)
 
-    st.write("")
 
-    # 채팅 기록 메모리
-    if "chat_history" not in st.session_state:
-        st.session_state.chat_history = []
+# ================================
+# Input (BOTTOM)
+# ================================
+st.write("")
+user_input = st.text_area("질문 입력", placeholder="Claude에게 질문하세요...", key="chat_input")
+send = st.button("전송")
 
-    # 전송 처리
-    if send and user_input.strip():
-        st.session_state.chat_history.append({"role": "user", "msg": user_input})
 
-        # === 실제 MCP Chat Lambda 호출 연결 예정 ===
-        try:
-            headers = {"x-api-key": API_KEY} if API_KEY else {}
-            res = requests.post(
-                "http://13.209.50.18:8000/chat",
-                json={"message": user_input},
-                headers=headers
-            )
-            if res.status_code == 200:
-                reply = res.json().get("reply", "응답 없음")
-            else:
-                reply = f"Lambda 응답 실패: {res.status_code} - {res.text}"
-        except Exception as e:
-            reply = f"요청 실패: {str(e)}"
+# ================================
+# Send Logic
+# ================================
+if send and user_input.strip():
+    st.session_state.chat_history.append({"role": "user", "msg": user_input})
 
-        st.session_state.chat_history.append({"role": "assistant", "msg": reply})
+    try:
+        res = requests.post(
+            f"{LAMBDA_URL}/api/chat",
+            json={
+                "analysis_id": analysis_id,
+                "message": user_input,
+                "user_name": "dashboard-user"
+            }
+        )
 
-    # 채팅 UI 표시 (Claude 스타일)
-    for chat in st.session_state.chat_history:
-        if chat["role"] == "user":
-            st.markdown(f"**🙋 사용자:**  {chat['msg']}")
+        if res.status_code == 200:
+            reply = res.json().get("response", "응답 없음")
         else:
-            st.markdown(f"**🤖 MCP:**  {chat['msg']}")
+            reply = f"Lambda Error: {res.status_code} — {res.text}"
+
+    except Exception as e:
+        reply = f"요청 실패: {str(e)}"
+
+    st.session_state.chat_history.append({"role": "assistant", "msg": reply})
+
+    st.rerun()
+
