@@ -39,17 +39,36 @@ def lambda_handler(event, context):
     logger.info("=== Orchestration Lambda 호출 ===")
     logger.info(f"Event: {json.dumps(event, indent=2, default=str)}")
 
-    # EventBridge 이벤트 체크
+    # ===============================
+    # EventBridge 이벤트인지 확인
+    # ===============================
     if event.get("source") == "guardduty.slack-button":
         return handle_eventbridge_event(event)
 
-    http_method = event.get("httpMethod") or event.get("requestContext", {}).get(
-        "httpMethod"
+    # ===============================
+    # API Gateway 요청 처리
+    # (v1 / v2 모두 안전하게 처리)
+    # ===============================
+    http_method = (
+        event.get("httpMethod")
+        or event.get("requestContext", {}).get("http", {}).get("method")
     )
-    path = event.get("path") or event.get("requestContext", {}).get("path")
+
+    # path 우선순위
+    raw_path = (
+        event.get("resource")
+        or event.get("path")
+        or event.get("requestContext", {}).get("http", {}).get("path")
+        or ""
+    )
+
+    # 🔥 핵심 Fix — //api/chat 같은 이상 경로 자동 교정!
+    path = raw_path.replace("//", "/")
+
     path_parameters = event.get("pathParameters") or {}
     body = event.get("body", "{}")
 
+    # Base64 처리
     if event.get("isBase64Encoded"):
         import base64
 
@@ -60,11 +79,13 @@ def lambda_handler(event, context):
     except:
         body_json = {}
 
+    # ===============================
     # Routing
-    if http_method == "POST" and path == "/api/analyze":
+    # ===============================
+    if http_method == "POST" and "/api/analyze" in path:
         return handle_analyze(body_json)
 
-    elif http_method == "POST" and path == "/api/chat":
+    elif http_method == "POST" and "/api/chat" in path:
         return handle_chat(body_json)
 
     elif http_method == "GET" and path.startswith("/api/status/"):
@@ -72,6 +93,7 @@ def lambda_handler(event, context):
         return handle_status(analysis_id)
 
     else:
+        logger.error(f"❌ Invalid endpoint: method={http_method}, path={path}")
         return error_response("Invalid endpoint", 404)
 
 
@@ -102,7 +124,7 @@ def handle_eventbridge_event(event):
         response = requests.post(
             f"{MCP_SERVER_URL}/analyze",
             json={
-                "finding_data": incident_data,  # 변경: FastAPI 모델에 맞춤
+                "finding_data": incident_data,
                 "region": "KR",
             },
             timeout=60,
@@ -112,7 +134,6 @@ def handle_eventbridge_event(event):
             result = response.json()
             analysis_result = result.get("result", "분석 완료")
 
-            # 3. 결과 저장
             chat_storage.save_message(
                 session_id=session_id,
                 role="assistant",
@@ -123,9 +144,9 @@ def handle_eventbridge_event(event):
             )
 
             logger.info(f"✅ 분석 완료: {session_id}")
+
         else:
             logger.error(f"❌ MCP 분석 실패: {response.status_code}")
-            # 에러 메시지 저장
             chat_storage.save_message(
                 session_id=session_id,
                 role="system",
@@ -135,7 +156,6 @@ def handle_eventbridge_event(event):
 
     except Exception as e:
         logger.error(f"💥 MCP 호출 에러: {e}")
-        # 에러 메시지 저장
         chat_storage.save_message(
             session_id=session_id,
             role="system",
@@ -150,12 +170,6 @@ def handle_eventbridge_event(event):
 # Incident 분석 시작
 # ===============================
 def handle_analyze(data):
-    """
-    분석 요청 처리
-    - incident-analysis 테이블에 초기 상태 저장
-    - MCP 서버에 비동기 분석 요청
-    """
-
     incident_data = data.get("incident", {})
     if not incident_data:
         return error_response("Missing incident data", 400)
@@ -192,14 +206,6 @@ def handle_analyze(data):
 # Chat 처리
 # ===============================
 def handle_chat(data):
-    """
-    채팅 요청 처리
-    - chat-history 테이블에 메시지 저장
-    - MCP chat API 호출
-    - 응답도 chat-history에 저장
-    - incident-analysis 테이블에는 저장하지 않음
-    """
-
     analysis_id = data.get("analysis_id")
     message = data.get("message")
     user_name = data.get("user_name", "unknown-user")
@@ -213,7 +219,6 @@ def handle_chat(data):
 
     session_id = analysis_id
 
-    # 사용자 메시지 저장
     chat_storage.save_message(
         session_id=session_id,
         role="user",
@@ -224,26 +229,24 @@ def handle_chat(data):
 
     assistant_reply = "오류 발생"
 
-    # MCP 호출
     try:
         history = chat_storage.get_session_messages(session_id)
 
         response = requests.post(
             f"{MCP_SERVER_URL}/chat",
             json={"analysis_id": analysis_id, "message": message, "history": history},
-            timeout=15,
+            timeout=20,
         )
 
         if response.status_code == 200:
             result = response.json()
-            assistant_reply = result.get("response", "")
+            assistant_reply = result.get("reply") or result.get("response", "")
         else:
             logger.error(f"[MCP] chat 실패: {response.text}")
 
     except Exception as e:
         logger.error(f"[MCP] chat 요청 실패: {str(e)}")
 
-    # Assistant 응답 저장
     chat_storage.save_message(
         session_id=session_id,
         role="assistant",
@@ -259,12 +262,6 @@ def handle_chat(data):
 # 상태 조회
 # ===============================
 def handle_status(analysis_id):
-    """
-    Incident 상태 / 결과 조회
-    - incident-analysis 테이블만 사용
-    - chat 히스토리는 포함하지 않음
-    """
-
     if not analysis_id:
         return error_response("Missing analysis_id", 400)
 
